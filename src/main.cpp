@@ -26,7 +26,7 @@ MFRC522::MIFARE_Key key;
 byte sector         = 1;
 byte blockAddr      = 4;
 byte dataBlock[]    = {
-        0x00, 0x00, 0x00, 0x00, //  byte 1 for color encoding
+        0x00, 0x00, 0x00, 0x00, //  byte 0 for color encoding, byte 1 for level encoding, byte 2 for song/animation selection
         0x00, 0x00, 0x00, 0x00, 
         0x00, 0x00, 0x00, 0x00, 
         0x00, 0x00, 0x00, 0x10  // byte 15 for event track bit[0] = burnerot2018, bit[1] = contra2019, bit[2] = Midburn2022, bit[3] = burnerot2022
@@ -235,6 +235,7 @@ void loop() {
   byte eventTrack = *(buffer + 15);
   Serial.print("Current chip color: "); Serial.println(color);
   Serial.print("Current chip level: "); Serial.println(level);
+  Serial.print("Current chip song: "); Serial.println(song);
   Serial.print("Current chip eventTrack: "); Serial.println(eventTrack,HEX);
 
 
@@ -243,13 +244,15 @@ void loop() {
   if (is_old_chip) {
     eventTrack |= (1 << EVENT_ID_BIT); // add event id to eventTrack byte
     if (buffer[15] < 0x8) {
-        dataBlock[0] = buffer[1];     // move color byte of old chips from byte 1 to byte 0
+        color = buffer[1];
+        dataBlock[0] = color;     // move color byte of old chips from byte 1 to byte 0
     } else {
-        dataBlock[0] = buffer[0]; // after burnerot2022 event the color byte was moved to byte 0 no need to change
+        color = buffer[0];
+        dataBlock[0] = color;     // after burnerot2022 event the color byte was moved to byte 0 no need to change
     }
-    dataBlock[1] = 0x0;           // zero out level byte
-    dataBlock[2] = 0x1;           // set song byte to something
-    dataBlock[15] = eventTrack;   // last byte for event track, bit[0] = burnerot2018, bit[1] = contra2019, bit[2] = Midburn2022
+    dataBlock[1] = level;         // leave level byte as is
+    dataBlock[2] = color;         // set song byte from color byte
+    dataBlock[15] = eventTrack;   // last byte for event tracking
     write_success = write_and_verify(blockAddr, dataBlock, buffer, size);
     if (write_success) {
       Serial.println(F("write worked, old chip converted to new format"));
@@ -273,6 +276,7 @@ void loop() {
     chip_data["color"] = color;
     chip_data["level"] = level;
     chip_data["song"] = song;
+    chip_data["eventTrack"] = eventTrack;
     chip_data["old_chip"] = is_old_chip;
     char chip_data_buffer[100];
     serializeJson(chip_data, chip_data_buffer);
